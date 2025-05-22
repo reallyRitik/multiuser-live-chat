@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin Chat Panel</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  #users {
+    width: 200px;
+    float: left;
+    border-right: 1px solid #ccc;
+    height: 90vh;
+    overflow-y: auto;
+  }
+  #chat {
+    margin-left: 210px;
+    height: 90vh;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .user-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+  }
+  .user-item.selected {
+    background-color: #def;
+    font-weight: bold;
+  }
+  .user-item span {
+    margin-left: 10px;
+    background: red;
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  #msgForm {
+    position: fixed;
+    bottom: 0;
+    left: 210px;
+    right: 0;
+    background: #f5f5f5;
+    padding: 10px;
+    display: flex;
+  }
+  #msgInput {
+    flex: 1;
+    padding: 8px;
+    font-size: 16px;
+  }
+  #sendBtn {
+    padding: 8px 16px;
+    font-size: 16px;
+  }
+  .message {
+    margin-bottom: 8px;
+  }
+  .user-msg {
+    color: blue;
+  }
+  .admin-msg {
+    color: green;
+  }
+</style>
+</head>
+<body>
+
+<div id="users"></div>
+
+<div id="chat"></div>
+
+<form id="msgForm">
+  <input id="msgInput" autocomplete="off" placeholder="Type admin message..." />
+  <button type="submit" id="sendBtn">Send</button>
+</form>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io({ query: "role=admin" });
+  const usersDiv = document.getElementById('users');
+  const chatDiv = document.getElementById('chat');
+  const form = document.getElementById('msgForm');
+  const input = document.getElementById('msgInput');
+
+  let selectedUserId = null;
+  let chatHistory = [];
+  const unreadMap = new Map();
+
+  function appendMessage(className, text) {
+    const div = document.createElement('div');
+    div.className = 'message ' + className;
+    div.textContent = text;
+    chatDiv.appendChild(div);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
+
+  function renderUsers(users) {
+    usersDiv.innerHTML = '';
+    users.forEach(({ userId, unread }) => {
+      unreadMap.set(userId, unread);
+
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.textContent = userId;
+
+      if (unread > 0) {
+        const badge = document.createElement('span');
+        badge.textContent = unread;
+        div.appendChild(badge);
+      }
+
+      div.onclick = () => selectUser(userId, div);
+      usersDiv.appendChild(div);
+    });
+  }
+
+  function updateUserUnread(userId, count) {
+    unreadMap.set(userId, count);
+
+    for (const child of usersDiv.children) {
+      if (child.textContent.startsWith(userId)) {
+        const oldBadge = child.querySelector('span');
+        if (oldBadge) oldBadge.remove();
+
+        if (count > 0) {
+          const badge = document.createElement('span');
+          badge.textContent = count;
+          child.appendChild(badge);
+        }
+      }
+    }
+  }
+
+  function selectUser(userId, divElement) {
+    selectedUserId = userId;
+
+    Array.from(usersDiv.children).forEach(child => child.classList.remove('selected'));
+    divElement.classList.add('selected');
+
+    chatDiv.innerHTML = '';
+    const userMsgs = chatHistory.filter(m => m.userId === userId);
+    userMsgs.forEach(msg => {
+      appendMessage(msg.sender === 'user' ? 'user-msg' : 'admin-msg', `${msg.sender === 'user' ? 'User' : 'Admin'}: ${msg.text}`);
+    });
+
+    socket.emit('read user', userId);
+    updateUserUnread(userId, 0);
+  }
+
+  socket.on('users list', (usersData) => {
+    renderUsers(usersData);
+  });
+
+  socket.on('user connected', ({ userId, unread }) => {
+    const currentUsers = Array.from(usersDiv.children).map(n => n.textContent.split(' ')[0]);
+    if (!currentUsers.includes(userId)) {
+      renderUsers([...currentUsers.map(id => ({ userId: id, unread: unreadMap.get(id) || 0 })), { userId, unread: unread || 0 }]);
+    }
+  });
+
+  socket.on('chat message', (msg, { unreadCount }) => {
+    chatHistory.push(msg);
+    updateUserUnread(msg.userId, unreadCount);
+
+    if (msg.userId === selectedUserId) {
+      appendMessage('user-msg', `User: ${msg.text}`);
+    }
+  });
+
+  socket.on('chat reply', (msg, { userId, unreadCount }) => {
+    chatHistory.push(msg);
+    updateUserUnread(userId, unreadCount);
+
+    if (msg.userId === selectedUserId) {
+      appendMessage('admin-msg', `Admin: ${msg.text}`);
+    }
+  });
+
+  socket.on('reset unread', (userId) => {
+    updateUserUnread(userId, 0);
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!input.value || !selectedUserId) return alert('Select a user and enter a message.');
+
+    socket.emit('admin message', { text: input.value, userId: selectedUserId });
+
+    appendMessage('admin-msg', `Admin: ${input.value}`);
+    chatHistory.push({ sender: 'admin', text: input.value, userId: selectedUserId });
+
+    input.value = '';
+  });
+</script>
+
+</body>
+</html>
