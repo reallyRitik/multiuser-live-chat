@@ -6,3 +6,40 @@ This is a real-time chat application built using **Node.js**, **Socket.IO**, **M
 
 ## 📁 Project Structure
 
+You said:
+project-root/
+│
+
+│   ├── model/
+│   │   └── message.js
+│   └── public/
+│       ├── index.html
+│       └── admin.html
+│   └──package-lock.json 
+│   └──package.json 
+│   └──server.js
+
+
+
+## Install dependencies:
+
+npm install
+
+🔌 Usage
+Open http://localhost:3000/index.html in a browser (User view).
+
+Open http://localhost:3000/admin.html in another browser tab or window (Admin view).
+
+The chat is real-time using WebSockets (Socket.IO). The admin can reply to individual users, and messages are stored in MongoDB.
+
+📦 Technologies Used
+Node.js
+
+Express
+
+Socket.IO
+
+MongoDB
+
+Mongoose
+
