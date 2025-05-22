@@ -44,7 +44,11 @@
 
     socket.on('chat reply', (msg) => {
       appendMessage('Admin: ' + msg.text);
-      sendNotification('Reply from Admin', msg.text);
+
+      // Show notification only if tab is NOT visible
+      if (document.visibilityState !== 'visible') {
+        sendNotification('Reply from Admin', msg.text);
+      }
     });
   </script>
 </body>
